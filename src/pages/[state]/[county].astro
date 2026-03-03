@@ -43,6 +43,30 @@ const stateName = state.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()
 const countyFullName = countyName
 
 // ─────────────────────────────
+// POPULATION (Supabase)
+// ─────────────────────────────
+
+let population = null
+
+const normalizedState = state.toLowerCase().trim()
+
+const normalizedCounty = county
+  .toLowerCase()
+  .replace('-county', '')
+  .trim()
+
+const { data: populationRow } = await supabase
+  .from('county_population')
+  .select('population')
+  .eq('state', normalizedState)
+  .eq('county', normalizedCounty)
+  .single()
+
+if (populationRow?.population) {
+  population = populationRow.population
+}
+
+// ─────────────────────────────
 // COUNTY AVERAGE
 // ─────────────────────────────
 
@@ -209,4 +233,5 @@ const additionalCapital = plan30 - plan20
   s90National={s90National}
 
   stateCounties={stateCounties}
+  population={population}
 />

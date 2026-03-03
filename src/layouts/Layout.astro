@@ -1,6 +1,7 @@
 ---
-// Minimal layout — do NOT include <html> or <body>
-// Pages already define full HTML structure
+import Analytics from '@vercel/analytics/astro';
 ---
-
-<slot />
+<body>
+  <slot />
+  <Analytics />
+</body>
