@@ -42,6 +42,101 @@
     font-weight: 300;
   }
 
+
+  /* REGISTER MODAL */
+.register-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.register-modal.active {
+  display: flex;
+}
+
+.register-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px);
+}
+
+.register-modal-box {
+  position: relative;
+  background: var(--cream);
+  width: 100%;
+  max-width: 480px;
+  padding: 36px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  border-top: 3px solid var(--gold);
+  z-index: 2;
+}
+
+.register-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.register-modal-header h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  color: var(--navy);
+}
+
+.register-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--text-light);
+}
+
+.modal-field {
+  margin-bottom: 18px;
+}
+
+.modal-field label {
+  font-size: 12px;
+  color: var(--text-light);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.modal-field input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  font-family: 'DM Sans', sans-serif;
+}
+
+.modal-submit-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 16px;
+  background: var(--navy);
+  color: var(--cream);
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-submit-btn:hover {
+  background: var(--navy-light);
+}
+
+.modal-note {
+  margin-top: 14px;
+  font-size: 11px;
+  color: var(--text-light);
+  text-align: center;
+}
+
   /* LAYOUT */
   .shell {
     display: grid;
@@ -1121,6 +1216,48 @@
     </div>
   </div>
 
+  <!-- REGISTER MODAL -->
+<div class="register-modal" id="registerModal">
+  <div class="register-modal-overlay" onclick="closeRegisterModal()"></div>
+
+  <div class="register-modal-box">
+    <div class="register-modal-header">
+      <h3>Create Your Secure Portal Access</h3>
+      <button class="register-close" onclick="closeRegisterModal()">×</button>
+    </div>
+
+    <div class="register-modal-body">
+      <div class="modal-field">
+        <label>First Name</label>
+        <input type="text" id="modal-firstName" disabled />
+      </div>
+
+      <div class="modal-field">
+        <label>Last Name</label>
+        <input type="text" id="modal-lastName" disabled />
+      </div>
+
+      <div class="modal-field">
+        <label>Email</label>
+        <input type="email" id="modal-email" disabled />
+      </div>
+
+      <div class="modal-field">
+        <label>Create Password</label>
+        <input type="password" id="modal-password" placeholder="Minimum 6 characters" />
+      </div>
+
+      <button class="modal-submit-btn" onclick="registerFromQuiz()">
+        Create My Account →
+      </button>
+
+      <div class="modal-note">
+        Your account gives you permanent access to your personalized estate report.
+      </div>
+    </div>
+  </div>
+</div>
+
   <!-- RIGHT PANEL -->
   <div class="right-panel">
 
@@ -1188,10 +1325,10 @@
                 <div class="price-label">One-time payment</div>
               </div>
 
-              <button class="cta-btn">
-                Unlock My Full Report
-                <span class="cta-btn-arrow">→</span>
-              </button>
+             <button class="cta-btn" onclick="openRegisterModal()">
+  Unlock My Full Report
+  <span class="cta-btn-arrow">→</span>
+</button>
 
               <div class="cta-subtext">
                 Secure checkout • Instant access • No subscription
@@ -1214,7 +1351,8 @@
   </div>
 </div>
 
-<script is:inline>
+<script type="module">
+import { supabase } from '/src/lib/supabase.js';
 const QUESTIONS = [
   {
     id: 'state',
@@ -1571,9 +1709,6 @@ function selectOption(qId, value) {
   document.getElementById('btnNext').disabled = false;
   updateScorePreview();
   updateSteps();
-
-  // Auto-advance after short delay
-  setTimeout(() => nextQuestion(), 380);
 }
 
 function onSelectChange(qId, value) {
@@ -1633,6 +1768,11 @@ function showSlide(idx) {
 }
 
 function nextQuestion() {
+  // Prevent advancing if current question not answered
+  const currentQuestion = QUESTIONS[currentQ];
+  if (currentQuestion.type !== 'email' && answers[currentQuestion.id] === undefined) {
+    return;
+  }
   if (currentQ < QUESTIONS.length - 1) {
     // Animate out
     const cur = document.getElementById(`slide-${currentQ}`);
@@ -1788,6 +1928,104 @@ function showResults() {
   }, 100);
 }
 
+function openRegisterModal() {
+  document.getElementById('modal-firstName').value = answers.firstName || '';
+  document.getElementById('modal-lastName').value = answers.lastName || '';
+  document.getElementById('modal-email').value = answers.email || '';
+  document.getElementById('registerModal').classList.add('active');
+}
+
+function closeRegisterModal() {
+  document.getElementById('registerModal').classList.remove('active');
+}
+
+async function registerFromQuiz() {
+  const password = document.getElementById('modal-password').value.trim();
+
+  if (!password || password.length < 6) {
+    alert('Password must be at least 6 characters.');
+    return;
+  }
+
+  // 1. Create auth user
+  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+    email: answers.email,
+    password: password
+  });
+
+  if (signUpError) {
+    alert('Signup error: ' + signUpError.message);
+    console.error(signUpError);
+    return;
+  }
+
+  const user = signUpData.user;
+
+  if (!user) {
+    alert('User creation failed — no user returned. Check email confirmation settings.');
+    return;
+  }
+
+  console.log('Auth user created:', user.id);
+
+  // 2. Insert profile row
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .insert({
+      id: user.id,
+      full_name: `${answers.firstName || ''} ${answers.lastName || ''}`.trim(),
+      email: user.email,
+      role: 'user'
+    });
+
+  if (profileError) {
+    alert('Profile insert failed: ' + profileError.message);
+    console.error(profileError);
+    return;
+  }
+
+  console.log('Profile inserted successfully');
+
+  // 3. Insert quiz submission
+  // Start with ALL raw answers exactly as captured
+  const completeAnswers = { ...answers };
+
+  // Guarantee every defined question ID exists in the object
+  QUESTIONS.forEach(q => {
+    if (!(q.id in completeAnswers)) {
+      completeAnswers[q.id] = null;
+    }
+  });
+
+  const { error: submissionError } = await supabase
+    .from('quiz_submissions')
+    .insert({
+      user_id: user.id,
+      score: calcScore(),
+      answers: completeAnswers
+    });
+
+  if (submissionError) {
+    console.error('Quiz submission error:', submissionError);
+  }
+
+  // 4. Sign user in explicitly (guarantee session)
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: answers.email,
+    password: password
+  });
+
+  if (signInError) {
+    alert('Login after signup failed: ' + signInError.message);
+    console.error(signInError);
+    return;
+  }
+
+  console.log('User logged in — redirecting to portal');
+
+  window.location.href = '/portal';
+}
+
 function startQuiz() {
   document.getElementById('introScreen').classList.add('hidden');
   document.getElementById('topBar').style.display = 'flex';
@@ -1800,8 +2038,7 @@ function startQuiz() {
   quizStarted = true;
 }
 
-</script>
-<script is:inline>
+// Add goBack function for use in onclick handlers
 function goBack() {
   if (window.history.length > 1) {
     window.history.back();
@@ -1809,6 +2046,19 @@ function goBack() {
     window.location.href = '/';
   }
 }
-// Init
+
+// Expose functions globally for onclick handlers
+window.startQuiz = startQuiz;
+window.nextQuestion = nextQuestion;
+window.prevQuestion = prevQuestion;
+window.openRegisterModal = openRegisterModal;
+window.closeRegisterModal = closeRegisterModal;
+window.registerFromQuiz = registerFromQuiz;
+window.selectOption = selectOption;
+window.onSelectChange = onSelectChange;
+window.onEmailChange = onEmailChange;
+window.goBack = goBack;
+
+// Initialize steps
 buildSteps();
 </script>
