@@ -20,368 +20,385 @@ export const prerender = false;
   <script type="module">
     import { supabase } from '/src/lib/supabase.js'
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) window.location.href = '/login'
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { data: { session } } = await supabase.auth.getSession()
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+      if (!session || !session.user) {
+        window.location.href = '/login'
+        return
+      }
 
-    if (!profile) window.location.href = '/login'
+      const user = session.user
 
-    const initials = profile.full_name
-      ? profile.full_name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()
-      : 'RS'
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
 
-    const app = document.getElementById('app')
+      if (error || !profile) {
+        window.location.href = '/login'
+        return
+      }
 
-    app.innerHTML = `
-      <div class="portal-root">
-
-        <nav class="portal-nav">
-          <div class="nav-left" onclick="window.location.href='/'">
-            <div class="shield-icon"></div>
-            <span class="brand">Retirement <span>Shield</span></span>
-          </div>
-
-          <div class="nav-right">
-            <span class="badge">${profile.role.toUpperCase()} PORTAL</span>
-
-            <div class="user-menu">
-              <div class="avatar">${initials}</div>
-              <div class="user-info">
-                <span class="user-name">${profile.full_name}</span>
-                <span class="user-role">${profile.role}</span>
-              </div>
-              <button id="logoutBtn" class="logout-btn">Sign Out</button>
-            </div>
-          </div>
-        </nav>
-
-        <section class="hero">
-          <div class="hero-inner">
-            <div class="hero-label">
-              <span class="line"></span>
-              Your Retirement Action Plan
-            </div>
-
-            <div class="hero-card">
-              <div class="progress-wrap">
-                <div class="progress-ring">
-                  <div class="progress-value">65%</div>
-                  <div class="progress-label">Complete</div>
-                </div>
-              </div>
-
-              <div class="hero-main">
-                <h1>${profile.full_name ? profile.full_name.split(' ').slice(-1)[0] + ' Family Plan' : 'Your Family Plan'}</h1>
-                <p class="subtext">Prepared following your consultation with Lewis on February 18, 2026</p>
-
-                <div class="status-badges">
-                  <span class="badge-complete">1 Completed</span>
-                  <span class="badge-progress">2 In Progress</span>
-                  <span class="badge-queued">2 Queued</span>
-                </div>
-              </div>
-
-              <div class="review-box">
-                <div class="review-label">Next Plan Review</div>
-                <div class="review-date">August 2026</div>
-                <div class="review-sub">6-month check-in</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <div class="tabs-wrap">
-          <div class="tabs">
-            <button class="tab active" data-tab="action">Action Plan</button>
-            <button class="tab" data-tab="team">Your Team</button>
-            <button class="tab" data-tab="timeline">Timeline</button>
-            <button class="tab" data-tab="documents">Documents</button>
-          </div>
-          <div class="tab-underline"></div>
-        </div>
-
-        <div class="content-wrap">
-          <div id="portalContent"></div>
-        </div>
-
-        <footer class="portal-footer">
-          © 2026 <strong>Retirement Shield</strong> · Educational use only
-        </footer>
-
-      </div>
-    `
-
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-      await supabase.auth.signOut()
-      window.location.href = '/'
+      initializePortal(user, profile)
     })
 
-    const contentDiv = document.getElementById('portalContent')
+    function initializePortal(user, profile) {
+      const initials = profile.full_name
+        ? profile.full_name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()
+        : 'RS'
 
-    if (profile.role === 'user') {
+      const app = document.getElementById('app')
 
-      const actionPlan = [
-        {
-          id: 1,
-          title: 'Update Revocable Living Trust',
-          category: 'Estate Planning · Morrison & Associates, P.A.',
-          status: 'complete',
-          details: 'Ensure trust reflects current beneficiaries and asset structure.',
-          subtasks: [
-            { label: 'Trust reviewed', done: true },
-            { label: 'Beneficiaries updated', done: true }
-          ]
-        },
-        {
-          id: 2,
-          title: 'Retitle Investment Accounts to Trust',
-          category: 'Asset Funding · Morrison & Associates, P.A.',
-          status: 'progress',
-          details: 'Transfer brokerage and bank accounts into the name of your trust.',
-          subtasks: [
-            { label: 'Schwab brokerage', done: true },
-            { label: 'Fidelity IRA update', done: true },
-            { label: 'Chase joint checking', done: false },
-            { label: 'Ally savings account', done: false }
-          ]
-        },
-        {
-          id: 3,
-          title: 'Life Insurance Coverage Gap Analysis',
-          category: 'Insurance · Retirement Shield',
-          status: 'progress',
-          details: 'Review policy coverage relative to income replacement needs.',
-          subtasks: [
-            { label: 'Policy audit', done: false }
-          ]
-        },
-        {
-          id: 4,
-          title: 'Beneficiary Designation Audit',
-          category: 'Estate Planning',
-          status: 'queued',
-          details: 'Confirm all beneficiary forms override outdated designations.',
-          subtasks: []
-        },
-        {
-          id: 5,
-          title: 'Tax-Efficient Withdrawal Strategy Review',
-          category: 'Tax Planning',
-          status: 'queued',
-          details: 'Optimize retirement withdrawal sequence.',
-          subtasks: []
-        }
-      ]
+      app.innerHTML = `
+        <div class="portal-root">
 
-      function calculateStats() {
-        const completed = actionPlan.filter(a => a.status === 'complete').length
-        const inProgress = actionPlan.filter(a => a.status === 'progress').length
-        const queued = actionPlan.filter(a => a.status === 'queued').length
-        return { completed, inProgress, queued }
-      }
+          <nav class="portal-nav">
+            <div class="nav-left" onclick="window.location.href='/'">
+              <div class="shield-icon"></div>
+              <span class="brand">Retirement <span>Shield</span></span>
+            </div>
 
-      function renderPlan() {
-        const stats = calculateStats()
+            <div class="nav-right">
+              <span class="badge">${profile.role.toUpperCase()} PORTAL</span>
 
-        document.querySelector('.badge-complete').innerText = `${stats.completed} Completed`
-        document.querySelector('.badge-progress').innerText = `${stats.inProgress} In Progress`
-        document.querySelector('.badge-queued').innerText = `${stats.queued} Queued`
+              <div class="user-menu">
+                <div class="avatar">${initials}</div>
+                <div class="user-info">
+                  <span class="user-name">${profile.full_name}</span>
+                  <span class="user-role">${profile.role}</span>
+                </div>
+                <button id="logoutBtn" class="logout-btn">Sign Out</button>
+              </div>
+            </div>
+          </nav>
 
-        // Preserve which card is open
-        const openCard = document.querySelector('.plan-card.open')
-        const openId = openCard ? openCard.dataset.id : null
+          <section class="hero">
+            <div class="hero-inner">
+              <div class="hero-label">
+                <span class="line"></span>
+                Your Retirement Action Plan
+              </div>
 
-        contentDiv.innerHTML = actionPlan.map(item => `
-          <div class="plan-card ${item.status}" data-id="${item.id}">
-            <div class="plan-header">
-              <div class="plan-left">
-                <div class="plan-number">${item.id}</div>
-                <div>
-                  <h3>${item.title}</h3>
-                  <div class="plan-category">${item.category}</div>
+              <div class="hero-card">
+                <div class="progress-wrap">
+                  <div class="progress-ring">
+                    <div class="progress-value">65%</div>
+                    <div class="progress-label">Complete</div>
+                  </div>
+                </div>
+
+                <div class="hero-main">
+                  <h1>${profile.full_name ? profile.full_name.split(' ').slice(-1)[0] + ' Family Plan' : 'Your Family Plan'}</h1>
+                  <p class="subtext">Prepared following your consultation with Lewis on February 18, 2026</p>
+
+                  <div class="status-badges">
+                    <span class="badge-complete">1 Completed</span>
+                    <span class="badge-progress">2 In Progress</span>
+                    <span class="badge-queued">2 Queued</span>
+                  </div>
+                </div>
+
+                <div class="review-box">
+                  <div class="review-label">Next Plan Review</div>
+                  <div class="review-date">August 2026</div>
+                  <div class="review-sub">6-month check-in</div>
                 </div>
               </div>
-              <div class="plan-status">${item.status.replace('_',' ')}</div>
             </div>
-            <div class="plan-body">
-              <p>${item.details}</p>
-              ${item.subtasks.length > 0 ? `
-                <div class="subtasks">
-                  ${item.subtasks.map((s, i) => `
-                    <label class="subtask ${s.done ? 'done' : ''}">
-                      <input type="checkbox" data-parent="${item.id}" data-index="${i}" ${s.done ? 'checked' : ''}>
-                      <span class="custom-check"></span>
-                      <span class="task-label">${s.label}</span>
-                    </label>
-                  `).join('')}
-                </div>
-              ` : ''}
+          </section>
+
+          <div class="tabs-wrap">
+            <div class="tabs">
+              <button class="tab active" data-tab="action">Action Plan</button>
+              <button class="tab" data-tab="team">Your Team</button>
+              <button class="tab" data-tab="timeline">Timeline</button>
+              <button class="tab" data-tab="documents">Documents</button>
             </div>
+            <div class="tab-underline"></div>
           </div>
-        `).join('')
 
-        attachEvents()
-
-        if (openId) {
-          const restored = document.querySelector(`.plan-card[data-id="${openId}"]`)
-          if (restored) restored.classList.add('open')
-        }
-      }
-
-      // --- DOCUMENTS TAB FUNCTIONALITY ---
-      function renderDocuments() {
-        contentDiv.innerHTML = `
-          <div class="doc-card">
-            <div class="doc-header">
-              <div class="doc-icon">📄</div>
-              <div>
-                <h3>Estate Planning Assessment</h3>
-                <div class="doc-meta">Generated March 4, 2026 · Personalized Strategy Report</div>
-              </div>
-            </div>
-
-            <div class="doc-body">
-              <p>
-                This comprehensive estate planning report outlines your trust structure,
-                beneficiary designations, asset protection positioning, and retirement
-                income coordination strategy.
-              </p>
-            </div>
-
-            <div class="doc-actions">
-              <button class="view-pdf-btn" id="viewPdfBtn">View My PDF</button>
-            </div>
+          <div class="content-wrap">
+            <div id="portalContent"></div>
           </div>
-        `
-        const pdfBtn = document.getElementById('viewPdfBtn')
-        if (pdfBtn) {
-          pdfBtn.addEventListener('click', () => {
-            window.location.href = `/EstatePlanningAssessmentpdf/${user.id}`
-          })
-        }
-      }
 
-      function renderTeam() {
-        contentDiv.innerHTML = `
-          <div class="doc-card">
-            <div class="doc-header">
-              <div class="doc-icon">👥</div>
-              <div>
-                <h3>Your Advisory Team</h3>
-                <div class="doc-meta">Professional coordination overview</div>
-              </div>
-            </div>
+          <footer class="portal-footer">
+            © 2026 <strong>Retirement Shield</strong> · Educational use only
+          </footer>
 
-            <div class="doc-body">
-              <p>
-                No advisory team has been assigned to your plan yet.
-                Once your legal, tax, or insurance professionals are
-                connected to your strategy, they will appear here.
-              </p>
-            </div>
-          </div>
-        `
-      }
-
-      function renderTimeline() {
-        contentDiv.innerHTML = `
-          <div class="doc-card">
-            <div class="doc-header">
-              <div class="doc-icon">🗓️</div>
-              <div>
-                <h3>Implementation Timeline</h3>
-                <div class="doc-meta">Execution milestones & review schedule</div>
-              </div>
-            </div>
-
-            <div class="doc-body">
-              <p>
-                No implementation timeline has been generated yet.
-                Once your retirement action steps are formally scheduled,
-                milestone tracking and progress deadlines will appear here.
-              </p>
-            </div>
-          </div>
-        `
-      }
-
-      function attachEvents() {
-        document.querySelectorAll('.plan-header').forEach(h => {
-          h.onclick = () => {
-            const card = h.parentElement
-            const isOpen = card.classList.contains('open')
-
-            // Close all cards first
-            document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('open'))
-
-            // If it was not open before, open it
-            if (!isOpen) {
-              card.classList.add('open')
-            }
-          }
-        })
-
-        document.querySelectorAll('.subtask input').forEach(cb => {
-          cb.onchange = (e) => {
-            const parentId = Number(e.target.dataset.parent)
-            const index = Number(e.target.dataset.index)
-            const planItem = actionPlan.find(a => a.id === parentId)
-            planItem.subtasks[index].done = e.target.checked
-            if (e.target.checked) {
-              e.target.closest('.subtask').classList.add('done')
-            } else {
-              e.target.closest('.subtask').classList.remove('done')
-            }
-
-            const allDone = planItem.subtasks.length && planItem.subtasks.every(s => s.done)
-            if (allDone) planItem.status = 'complete'
-            else if (planItem.subtasks.some(s => s.done)) planItem.status = 'progress'
-            else planItem.status = 'queued'
-
-            renderPlan()
-          }
-        })
-      }
-
-      renderPlan()
-
-      const tabs = document.querySelectorAll('.tab')
-
-      tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-          tabs.forEach(t => t.classList.remove('active'))
-          tab.classList.add('active')
-
-          const type = tab.dataset.tab
-
-          if (type === 'action') renderPlan()
-          if (type === 'documents') renderDocuments()
-          if (type === 'team') renderTeam()
-          if (type === 'timeline') renderTimeline()
-        })
-      })
-    }
-
-    if (profile.role === 'admin') {
-      const { data: users } = await supabase.from('profiles').select('*')
-
-      contentDiv.innerHTML = `
-        <div class="section">
-          <h2>All Registered Users</h2>
-          ${users.map(u => `
-            <div class="card">
-              <strong>${u.full_name}</strong>
-              <div class="meta">${u.email ?? ''}</div>
-              <div class="role">${u.role}</div>
-            </div>
-          `).join('')}
         </div>
       `
+
+      document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await supabase.auth.signOut()
+        window.location.href = '/'
+      })
+
+      const contentDiv = document.getElementById('portalContent')
+
+      if (profile.role === 'user') {
+
+        const actionPlan = [
+          {
+            id: 1,
+            title: 'Update Revocable Living Trust',
+            category: 'Estate Planning · Morrison & Associates, P.A.',
+            status: 'complete',
+            details: 'Ensure trust reflects current beneficiaries and asset structure.',
+            subtasks: [
+              { label: 'Trust reviewed', done: true },
+              { label: 'Beneficiaries updated', done: true }
+            ]
+          },
+          {
+            id: 2,
+            title: 'Retitle Investment Accounts to Trust',
+            category: 'Asset Funding · Morrison & Associates, P.A.',
+            status: 'progress',
+            details: 'Transfer brokerage and bank accounts into the name of your trust.',
+            subtasks: [
+              { label: 'Schwab brokerage', done: true },
+              { label: 'Fidelity IRA update', done: true },
+              { label: 'Chase joint checking', done: false },
+              { label: 'Ally savings account', done: false }
+            ]
+          },
+          {
+            id: 3,
+            title: 'Life Insurance Coverage Gap Analysis',
+            category: 'Insurance · Retirement Shield',
+            status: 'progress',
+            details: 'Review policy coverage relative to income replacement needs.',
+            subtasks: [
+              { label: 'Policy audit', done: false }
+            ]
+          },
+          {
+            id: 4,
+            title: 'Beneficiary Designation Audit',
+            category: 'Estate Planning',
+            status: 'queued',
+            details: 'Confirm all beneficiary forms override outdated designations.',
+            subtasks: []
+          },
+          {
+            id: 5,
+            title: 'Tax-Efficient Withdrawal Strategy Review',
+            category: 'Tax Planning',
+            status: 'queued',
+            details: 'Optimize retirement withdrawal sequence.',
+            subtasks: []
+          }
+        ]
+
+        function calculateStats() {
+          const completed = actionPlan.filter(a => a.status === 'complete').length
+          const inProgress = actionPlan.filter(a => a.status === 'progress').length
+          const queued = actionPlan.filter(a => a.status === 'queued').length
+          return { completed, inProgress, queued }
+        }
+
+        function renderPlan() {
+          const stats = calculateStats()
+
+          document.querySelector('.badge-complete').innerText = `${stats.completed} Completed`
+          document.querySelector('.badge-progress').innerText = `${stats.inProgress} In Progress`
+          document.querySelector('.badge-queued').innerText = `${stats.queued} Queued`
+
+          // Preserve which card is open
+          const openCard = document.querySelector('.plan-card.open')
+          const openId = openCard ? openCard.dataset.id : null
+
+          contentDiv.innerHTML = actionPlan.map(item => `
+            <div class="plan-card ${item.status}" data-id="${item.id}">
+              <div class="plan-header">
+                <div class="plan-left">
+                  <div class="plan-number">${item.id}</div>
+                  <div>
+                    <h3>${item.title}</h3>
+                    <div class="plan-category">${item.category}</div>
+                  </div>
+                </div>
+                <div class="plan-status">${item.status.replace('_',' ')}</div>
+              </div>
+              <div class="plan-body">
+                <p>${item.details}</p>
+                ${item.subtasks.length > 0 ? `
+                  <div class="subtasks">
+                    ${item.subtasks.map((s, i) => `
+                      <label class="subtask ${s.done ? 'done' : ''}">
+                        <input type="checkbox" data-parent="${item.id}" data-index="${i}" ${s.done ? 'checked' : ''}>
+                        <span class="custom-check"></span>
+                        <span class="task-label">${s.label}</span>
+                      </label>
+                    `).join('')}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `).join('')
+
+          attachEvents()
+
+          if (openId) {
+            const restored = document.querySelector(`.plan-card[data-id="${openId}"]`)
+            if (restored) restored.classList.add('open')
+          }
+        }
+
+        // --- DOCUMENTS TAB FUNCTIONALITY ---
+        function renderDocuments() {
+          contentDiv.innerHTML = `
+            <div class="doc-card">
+              <div class="doc-header">
+                <div class="doc-icon">📄</div>
+                <div>
+                  <h3>Estate Planning Assessment</h3>
+                  <div class="doc-meta">Generated March 4, 2026 · Personalized Strategy Report</div>
+                </div>
+              </div>
+
+              <div class="doc-body">
+                <p>
+                  This comprehensive estate planning report outlines your trust structure,
+                  beneficiary designations, asset protection positioning, and retirement
+                  income coordination strategy.
+                </p>
+              </div>
+
+              <div class="doc-actions">
+                <button class="view-pdf-btn" id="viewPdfBtn">View My PDF</button>
+              </div>
+            </div>
+          `
+          const pdfBtn = document.getElementById('viewPdfBtn')
+          if (pdfBtn) {
+            pdfBtn.addEventListener('click', () => {
+              window.location.href = `/EstatePlanningAssessmentpdf/${user.id}`
+            })
+          }
+        }
+
+        function renderTeam() {
+          contentDiv.innerHTML = `
+            <div class="doc-card">
+              <div class="doc-header">
+                <div class="doc-icon">👥</div>
+                <div>
+                  <h3>Your Advisory Team</h3>
+                  <div class="doc-meta">Professional coordination overview</div>
+                </div>
+              </div>
+
+              <div class="doc-body">
+                <p>
+                  No advisory team has been assigned to your plan yet.
+                  Once your legal, tax, or insurance professionals are
+                  connected to your strategy, they will appear here.
+                </p>
+              </div>
+            </div>
+          `
+        }
+
+        function renderTimeline() {
+          contentDiv.innerHTML = `
+            <div class="doc-card">
+              <div class="doc-header">
+                <div class="doc-icon">🗓️</div>
+                <div>
+                  <h3>Implementation Timeline</h3>
+                  <div class="doc-meta">Execution milestones & review schedule</div>
+                </div>
+              </div>
+
+              <div class="doc-body">
+                <p>
+                  No implementation timeline has been generated yet.
+                  Once your retirement action steps are formally scheduled,
+                  milestone tracking and progress deadlines will appear here.
+                </p>
+              </div>
+            </div>
+          `
+        }
+
+        function attachEvents() {
+          document.querySelectorAll('.plan-header').forEach(h => {
+            h.onclick = () => {
+              const card = h.parentElement
+              const isOpen = card.classList.contains('open')
+
+              // Close all cards first
+              document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('open'))
+
+              // If it was not open before, open it
+              if (!isOpen) {
+                card.classList.add('open')
+              }
+            }
+          })
+
+          document.querySelectorAll('.subtask input').forEach(cb => {
+            cb.onchange = (e) => {
+              const parentId = Number(e.target.dataset.parent)
+              const index = Number(e.target.dataset.index)
+              const planItem = actionPlan.find(a => a.id === parentId)
+              planItem.subtasks[index].done = e.target.checked
+              if (e.target.checked) {
+                e.target.closest('.subtask').classList.add('done')
+              } else {
+                e.target.closest('.subtask').classList.remove('done')
+              }
+
+              const allDone = planItem.subtasks.length && planItem.subtasks.every(s => s.done)
+              if (allDone) planItem.status = 'complete'
+              else if (planItem.subtasks.some(s => s.done)) planItem.status = 'progress'
+              else planItem.status = 'queued'
+
+              renderPlan()
+            }
+          })
+        }
+
+        renderPlan()
+
+        const tabs = document.querySelectorAll('.tab')
+
+        tabs.forEach(tab => {
+          tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'))
+            tab.classList.add('active')
+
+            const type = tab.dataset.tab
+
+            if (type === 'action') renderPlan()
+            if (type === 'documents') renderDocuments()
+            if (type === 'team') renderTeam()
+            if (type === 'timeline') renderTimeline()
+          })
+        })
+      }
+
+      if (profile.role === 'admin') {
+        (async () => {
+          const { data: users } = await supabase.from('profiles').select('*')
+
+          contentDiv.innerHTML = `
+            <div class="section">
+              <h2>All Registered Users</h2>
+              ${users.map(u => `
+                <div class="card">
+                  <strong>${u.full_name}</strong>
+                  <div class="meta">${u.email ?? ''}</div>
+                  <div class="role">${u.role}</div>
+                </div>
+              `).join('')}
+            </div>
+          `
+        })()
+      }
     }
   </script>
 
