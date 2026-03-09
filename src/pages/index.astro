@@ -20,6 +20,44 @@
 
     <style>
 
+
+.check-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.checklist-item {
+  position: relative;
+  cursor: pointer;
+}
+
+.check-state {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.check-input:checked + .check-state {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+.check-input:checked + .check-state::after {
+  content: "✓";
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.check-input:checked ~ .check-text {
+  opacity: 0.9;
+}
 /* ══════════════════════════════════════════════════
    DESIGN TOKENS
 ══════════════════════════════════════════════════ */
@@ -876,7 +914,7 @@ footer { background: var(--navy); padding: 60px 48px 40px; color: rgba(245,240,2
   </a>
   <nav class="desktop-nav">
     <a href="/list">Check Your County’s Life Expectancy</a>
-    <a href="#">Taxes</a>
+    <a href="/lifeexpectancycalculator">Life Expectancy</a>
     <a href="#">Estate</a>
     <a href="/login">Login</a>
     <a href="/quiz" class="nav-cta">Estate Planning Quiz</a>
@@ -889,7 +927,7 @@ footer { background: var(--navy); padding: 60px 48px 40px; color: rgba(245,240,2
 <!-- ══ MOBILE NAV DRAWER ══════════════════════════════ -->
 <nav class="mobile-nav" id="mobileNav" aria-hidden="true">
   <a href="/list" onclick="closeNav()">Check Your County’s Life Expectancy</a>
-  <a href="#" onclick="closeNav()">Taxes</a>
+  <a href="/lifeexpectancycalculator" onclick="closeNav()">Life Expectancy</a>
   <a href="#" onclick="closeNav()">Estate</a>
   <a href="/login" onclick="closeNav()">Login</a>
   <a href="/quiz" class="mobile-nav-cta" onclick="closeNav()">Estate Planning Quiz →</a>
@@ -1014,41 +1052,46 @@ footer { background: var(--navy); padding: 60px 48px 40px; color: rgba(245,240,2
         Quick Self-Assessment — Tap what you know for certain:
       </div>
       <div class="estate-checklist">
-        <div class="checklist-item" onclick="toggleCheck(this)">
-          <div class="check-state">☐</div>
+       <label class="checklist-item">
+          <input type="checkbox" class="check-input" />
+          <div class="check-state"></div>
           <div class="check-text">
             <strong>I know who is named on my IRA right now.</strong>
             <span>Not who you think it is — who the brokerage has on file.</span>
           </div>
-        </div>
-        <div class="checklist-item" onclick="toggleCheck(this)">
-          <div class="check-state">☐</div>
+        </label>
+       <label class="checklist-item">
+          <input type="checkbox" class="check-input" />
+          <div class="check-state"></div>
           <div class="check-text">
             <strong>My will was created or reviewed in the last 5 years.</strong>
             <span>Major life changes (death, divorce, new grandchildren) require updates.</span>
           </div>
-        </div>
-        <div class="checklist-item" onclick="toggleCheck(this)">
-          <div class="check-state">☐</div>
+        </label>
+        <label class="checklist-item">
+          <input type="checkbox" class="check-input" />
+          <div class="check-state"></div>
           <div class="check-text">
             <strong>I have a durable power of attorney.</strong>
             <span>The document that lets someone act for you if you can't. Without it, your family needs a court order.</span>
           </div>
-        </div>
-        <div class="checklist-item" onclick="toggleCheck(this)">
-          <div class="check-state">☐</div>
+        </label>
+        <label class="checklist-item">
+          <input type="checkbox" class="check-input" />
+          <div class="check-state"></div>
           <div class="check-text">
             <strong>I know whether my assets go through probate.</strong>
             <span>In some states, probate costs a percentage of gross estate value before debts are subtracted.</span>
           </div>
-        </div>
-        <div class="checklist-item" onclick="toggleCheck(this)">
-          <div class="check-state">☐</div>
+        </label>
+        <label class="checklist-item">
+          <input type="checkbox" class="check-input" />
+          <div class="check-state"></div>
           <div class="check-text">
             <strong>I have a healthcare directive (living will).</strong>
             <span>Tells doctors what you want if you can't speak for yourself.</span>
           </div>
-        </div>
+        </label>
       </div>
       <p style="font-size:0.82rem; color:var(--text-muted); margin-top:14px; line-height:1.6; font-style:italic;">
         If you couldn't check all five with certainty, the free assessment shows you exactly where the gaps are.

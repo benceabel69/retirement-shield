@@ -312,6 +312,29 @@ svg.surv-chart{width:100%;display:block;overflow:visible;}
         <p class="card-sub">How each factor adjusts your baseline mortality hazard.</p>
         <div class="factor-list" id="factor-list"></div>
       </div>
+
+      <div id="state-guide-cta" style="display:none; margin-bottom:20px;">
+        <a id="state-guide-link"
+           href="#"
+           style="
+             display:block;
+             width:100%;
+             background:#3D94B8;
+             color:white;
+             text-align:center;
+             padding:18px 20px;
+             font-size:22px;
+             font-weight:700;
+             border-radius:12px;
+             text-decoration:none;
+             transition:all .2s ease;
+           "
+           onmouseover="this.style.background='#2E7FA1'"
+           onmouseout="this.style.background='#3D94B8'">
+           Full State Guide →
+        </a>
+      </div>
+
       <div class="ss-card">
         <h3>Social Security Strategy for Your Profile</h3>
         <div class="ss-verdict">
@@ -322,7 +345,7 @@ svg.surv-chart{width:100%;display:block;overflow:visible;}
       </div>
       <div class="cta-card">
         <h3>Know Your Number. Protect Your Plan.</h3>
-        <p>Get your complete Estate Planning Exposure Report - 7 scored gap areas based on your retirement profile. Delivered instantly for $4.95.</p>
+        <p>Get your complete Estate Planning Exposure Report - 7 scored gap areas based on your retirement profile. Delivered instantly for free.</p>
         <div class="cta-row">
           <a href="/quiz" class="btn-gold">Get My Estate Planning Report</a>
           <a href="#" onclick="openNewsletterModal(event)" class="btn-outline">Free Newsletter</a>
@@ -359,6 +382,21 @@ svg.surv-chart{width:100%;display:block;overflow:visible;}
 </div>
 
 <script is:inline>
+// --- Supabase (lazy load to avoid breaking non-module script) ---
+let supabaseClient = null;
+
+async function getSupabase() {
+  if (supabaseClient) return supabaseClient;
+
+  const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+
+  supabaseClient = createClient(
+    'https://nyiturqeotdxucfdurzu.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55aXR1cnFlb3RkeHVjZmR1cnp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMzI0ODgsImV4cCI6MjA4NzcwODQ4OH0.CvYju6UTaCGD_Zd-8FVTcB-yW9YVG_jQtwkd0l7mIV0'
+  );
+
+  return supabaseClient;
+}
 window.openNewsletterModal = function(e) {
   if (e) e.preventDefault();
   const modal = document.getElementById('newsletterModal');
@@ -469,7 +507,7 @@ function renderSVG(startAge,personal,national){
   svg.innerHTML=out;
 }
 
-function runCalc(){
+async function runCalc(){
   var age=parseInt(document.getElementById('age').value)||65;
   if(!sel.sex || !sel.smoke || !sel.bmi || !sel.ex){
     alert("Please complete all profile selections before calculating.");
@@ -478,11 +516,44 @@ function runCalc(){
   var sex=sel.sex;
   var zip=document.getElementById('zip').value;
   var geo=getGeoScalar(zip);
+
+  // --- ZIP to County Lookup ---
+  let locationLabel = "ZIP " + zip;
+  try {
+    const supabase = await getSupabase();
+    const { data, error } = await supabase
+      .from('zip_county_lookup')
+      .select('county_name, state_name')
+      .eq('zip', zip)
+      .single();
+    if (data && !error) {
+      locationLabel = data.county_name + " County, " + data.state_name;
+
+      // --- Dynamic State Guide Button ---
+      const stateSlug = data.state_name.toLowerCase().replace(/\s+/g, '-');
+      const guideLink = document.getElementById('state-guide-link');
+      const guideContainer = document.getElementById('state-guide-cta');
+
+      if (guideLink && guideContainer) {
+        guideLink.href = '/guide/' + stateSlug;
+        guideLink.textContent = 'Full ' + data.state_name + ' Guide →';
+        guideContainer.style.display = 'block';
+      }
+    }
+  } catch (err) {
+    console.log("ZIP lookup failed:", err);
+  }
+
   var res=calcSurvival(age,sex,geo);
   var p50=findPct(res.personal,0.5,age);
   var p75=findPct(res.personal,0.25,age);
   var p90=findPct(res.personal,0.1,age);
-  document.getElementById('rh-name').textContent=(age+'-Year-Old '+(sex==='female'?'Female':'Male')+' \u00b7 ZIP '+zip);
+
+  document.getElementById('rh-name').textContent =
+    age + '-Year-Old ' +
+    (sex === 'female' ? 'Female' : 'Male') +
+    ' · ' + locationLabel;
+
   document.getElementById('stat-median').textContent='Age '+p50;
   document.getElementById('stat-p75').textContent='Age '+p75;
   document.getElementById('stat-p90').textContent='Age '+p90;
@@ -522,6 +593,12 @@ function runCalc(){
   document.getElementById('placeholder').style.display='none';
   var r=document.getElementById('results');
   r.classList.add('visible');
+
+  // If no state found, hide guide button
+  if (locationLabel.startsWith('ZIP')) {
+    const guideContainer = document.getElementById('state-guide-cta');
+    if (guideContainer) guideContainer.style.display = 'none';
+  }
 }
 
 </script>
