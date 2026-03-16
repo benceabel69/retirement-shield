@@ -114,21 +114,45 @@
   font-family: 'DM Sans', sans-serif;
 }
 
-.modal-submit-btn {
-  width: 100%;
-  margin-top: 8px;
-  padding: 16px;
-  background: var(--navy);
-  color: var(--cream);
-  border: none;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
+  .modal-submit-btn {
+    width: 100%;
+    margin-top: 8px;
+    padding: 16px;
+    background: var(--navy);
+    color: var(--cream);
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
 
-.modal-submit-btn:hover {
-  background: var(--navy-light);
-}
+  .modal-submit-btn:hover {
+    background: var(--navy-light);
+  }
+
+  .modal-submit-btn.loading {
+    opacity: 0.7;
+    pointer-events: none;
+    position: relative;
+  }
+
+  .modal-submit-btn.loading::after {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.6);
+    border-top: 2px solid white;
+    border-radius: 50%;
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: translateY(-50%) rotate(360deg); }
+  }
 
 .modal-note {
   margin-top: 14px;
@@ -1248,6 +1272,19 @@
       </div>
 
       <div class="modal-field">
+        <label>Phone Number</label>
+        <div style="display:flex; gap:8px;">
+          <select id="modal-country" style="padding:12px; border:1.5px solid var(--border); font-family:'DM Sans', sans-serif;">
+            <option value="+1" selected>🇺🇸 +1</option>
+            <option value="+44">🇬🇧 +44</option>
+            <option value="+61">🇦🇺 +61</option>
+            <option value="+1-ca">🇨🇦 +1</option>
+          </select>
+          <input type="tel" id="modal-phone" placeholder="(555) 123-4567" style="flex:1;" />
+        </div>
+      </div>
+
+      <div class="modal-field">
         <label>Create Password</label>
         <input type="password" id="modal-password" placeholder="Minimum 6 characters" />
       </div>
@@ -1774,11 +1811,16 @@ async function onStateChange(value) {
 
   answers['state'] = value
 
-  // Fetch counties from Supabase
+  // Normalize state to match DB format (e.g., "New York" -> "new-york")
+  const normalizedState = value
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+
   const { data, error } = await supabase
     .from('county_population')
     .select('county')
-    .eq('state', value.toLowerCase())
+    .eq('state', normalizedState)
     .order('county', { ascending: true })
 
   if (error) {
@@ -1941,42 +1983,6 @@ function showResults() {
   console.log('Final Score:', score);
   console.log('--------------------------------');
 
-  // Send submission to CRM webhook
-  fetch('https://services.leadconnectorhq.com/hooks/t6CIiDKX4tJt5AYWbWxc/webhook-trigger/6bfde984-ec5d-43b9-9e4e-e632ecd41894', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      submittedAt: new Date().toISOString(),
-      score: score,
-      firstName: answers.firstName || '',
-      lastName: answers.lastName || '',
-      email: answers.email || '',
-      state: answers.state || '',
-      county: answers.county || '',
-      age: answers.age || '',
-      marital: answers.marital || '',
-      dependents: answers.dependents || '',
-      will: answers.will || '',
-      trust: answers.trust || '',
-      beneficiary: answers.beneficiary || '',
-      poa: answers.poa || '',
-      healthcare: answers.healthcare || '',
-      ltc: answers.ltc || '',
-      insurance: answers.insurance || '',
-      networth: answers.networth || '',
-      fullAnswers: answers
-    })
-  })
-  .then(res => res.text())
-  .then(data => {
-    console.log('Webhook success:', data);
-  })
-  .catch(err => {
-    console.error('Webhook error:', err);
-  });
-
   document.getElementById('finalScoreNum').textContent = score;
   document.getElementById('scoreDisplay').textContent = score;
   document.getElementById('scoreBarFill').style.width = score + '%';
@@ -2039,6 +2045,7 @@ function openRegisterModal() {
   document.getElementById('modal-firstName').value = answers.firstName || '';
   document.getElementById('modal-lastName').value = answers.lastName || '';
   document.getElementById('modal-email').value = answers.email || '';
+  document.getElementById('modal-phone').value = answers.phone || '';
   document.getElementById('registerModal').classList.add('active');
 }
 
@@ -2048,11 +2055,18 @@ function closeRegisterModal() {
 
 async function registerFromQuiz() {
   const password = document.getElementById('modal-password').value.trim();
+  const phoneInput = document.getElementById('modal-phone').value.trim();
+  const countryCode = document.getElementById('modal-country').value;
+  const phone = phoneInput ? (countryCode === '+1-ca' ? '+1' : countryCode) + phoneInput : '';
 
   if (!password || password.length < 6) {
     alert('Password must be at least 6 characters.');
     return;
   }
+
+  const submitBtn = document.querySelector('.modal-submit-btn');
+  submitBtn.classList.add('loading');
+  submitBtn.textContent = 'Creating Account...';
 
   // 1. Create auth user
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -2060,63 +2074,88 @@ async function registerFromQuiz() {
     password: password
   });
 
+  // Save phone in answers for later use
+  answers.phone = phone;
+
   if (signUpError) {
-    alert('Signup error: ' + signUpError.message);
-    console.error(signUpError);
-    return;
-  }
-
-  const user = signUpData.user;
-
-  if (!user) {
-    alert('User creation failed — no user returned. Check email confirmation settings.');
-    return;
-  }
-
-  console.log('Auth user created:', user.id);
-
-  // 2. Insert profile row
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .insert({
-      id: user.id,
-      full_name: `${answers.firstName || ''} ${answers.lastName || ''}`.trim(),
-      email: user.email,
-      role: 'user',
-      state: answers.state || null,
-      county: answers.county || null
-    });
-
-  if (profileError) {
-    alert('Profile insert failed: ' + profileError.message);
-    console.error(profileError);
-    return;
-  }
-
-  console.log('Profile inserted successfully');
-
-  // 3. Insert quiz submission
-  // Start with ALL raw answers exactly as captured
-  const completeAnswers = { ...answers };
-
-  // Guarantee every defined question ID exists in the object
-  QUESTIONS.forEach(q => {
-    if (!(q.id in completeAnswers)) {
-      completeAnswers[q.id] = null;
+    // If user already exists, attempt login instead of stopping
+    if (signUpError.message.toLowerCase().includes('already')) {
+      console.log('User already exists, attempting login...');
+    } else {
+      submitBtn.classList.remove('loading');
+      submitBtn.textContent = 'Create My Account →';
+      alert('Signup error: ' + signUpError.message);
+      console.error(signUpError);
+      return;
     }
-  });
+  }
 
-  const { error: submissionError } = await supabase
-    .from('quiz_submissions')
-    .insert({
-      user_id: user.id,
-      score: calcScore(),
-      answers: completeAnswers
+  const user = signUpData?.user;
+
+  if (user) {
+    console.log('Auth user created:', user.id);
+
+    // Insert profile only if new user was created
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+        full_name: `${answers.firstName || ''} ${answers.lastName || ''}`.trim(),
+        email: user.email,
+        role: 'user',
+        state: answers.state || null,
+        county: answers.county || null,
+        phone: phone || null
+      });
+
+    if (profileError) {
+      console.error('Profile insert failed:', profileError);
+    }
+
+    // Insert quiz submission for new user
+    const completeAnswers = { ...answers };
+    QUESTIONS.forEach(q => {
+      if (!(q.id in completeAnswers)) completeAnswers[q.id] = null;
     });
 
-  if (submissionError) {
-    console.error('Quiz submission error:', submissionError);
+    await supabase
+      .from('quiz_submissions')
+      .insert({
+        user_id: user.id,
+        score: calcScore(),
+        answers: completeAnswers
+      });
   }
+
+  // Send submission to CRM webhook (after phone is captured)
+  await fetch('https://services.leadconnectorhq.com/hooks/t6CIiDKX4tJt5AYWbWxc/webhook-trigger/6bfde984-ec5d-43b9-9e4e-e632ecd41894', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      submittedAt: new Date().toISOString(),
+      score: calcScore(),
+      firstName: answers.firstName || '',
+      lastName: answers.lastName || '',
+      email: answers.email || '',
+      phone: answers.phone || '',
+      state: answers.state || '',
+      county: answers.county || '',
+      age: answers.age || '',
+      marital: answers.marital || '',
+      dependents: answers.dependents || '',
+      will: answers.will || '',
+      trust: answers.trust || '',
+      beneficiary: answers.beneficiary || '',
+      poa: answers.poa || '',
+      healthcare: answers.healthcare || '',
+      ltc: answers.ltc || '',
+      insurance: answers.insurance || '',
+      networth: answers.networth || '',
+      fullAnswers: answers
+    })
+  });
 
   // 4. Sign user in explicitly (guarantee session)
   const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -2125,6 +2164,8 @@ async function registerFromQuiz() {
   });
 
   if (signInError) {
+    submitBtn.classList.remove('loading');
+    submitBtn.textContent = 'Create My Account →';
     alert('Login after signup failed: ' + signInError.message);
     console.error(signInError);
     return;
