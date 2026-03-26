@@ -4,16 +4,21 @@ const { slug } = Astro.params;
 const url = `${import.meta.env.PUBLIC_STRAPI_URL}/api/articles?filters[slug][$eq]=${slug}&populate=*`;
 
 let article = null;
+let fetchError = null;
 
-const res = await fetch(url);
-if (res.ok) {
+try {
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    throw new Error(`Strapi error: ${res.status}`);
+  }
+
   const json = await res.json();
   const items = Array.isArray(json?.data) ? json.data : [];
   article = items[0] ?? null;
-}
-
-if (!article) {
-  throw new Error(`Article not found: ${slug}`);
+} catch (err) {
+  console.error('Blog slug fetch failed:', err);
+  fetchError = err;
 }
 
 const formatDate = (dateStr) => {
@@ -501,32 +506,42 @@ nav{
 
 <div class="container">
 
-  <h1>{article.title}</h1>
-
-  {article.cover && (
-    <div class="cover">
-      <img 
-        src={`${import.meta.env.PUBLIC_STRAPI_URL}${article.cover.url}`} 
-        alt={article.title} 
-      />
+  {!article && (
+    <div>
+      <h1>Article not found</h1>
+      {fetchError && <p>Something went wrong loading this article.</p>}
     </div>
   )}
 
-  <div class="meta">
-    {formatDate(article.publishedAt) && (
-      <span>Published {formatDate(article.publishedAt)}</span>
-    )}
-  </div>
+  {article && (
+    <>
+      <h1>{article.title}</h1>
 
-  <div class="section">
+      {article.cover && (article.cover.url || article.cover.data?.attributes?.url) && (
+        <div class="cover">
+          <img
+            src={`${import.meta.env.PUBLIC_STRAPI_URL}${article.cover.url || article.cover.data?.attributes?.url}`}
+            alt={article.title}
+          />
+        </div>
+      )}
 
-  {(article.excerpt || article.description) && (
-    <div class="subheadline">
-      {article.excerpt || article.description}
-    </div>
+      <div class="meta">
+        {formatDate(article.publishedAt) && (
+          <span>Published {formatDate(article.publishedAt)}</span>
+        )}
+      </div>
+
+      <div class="section">
+        {(article.excerpt || article.description) && (
+          <div class="subheadline">
+            {article.excerpt || article.description}
+          </div>
+        )}
+
+        {article.content && <div set:html={article.content}></div>}
+      </div>
+    </>
   )}
-
-    {article.content && <div set:html={article.content}></div>}
-  </div>
 
 </div>

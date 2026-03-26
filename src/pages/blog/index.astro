@@ -1,10 +1,21 @@
 ---
 export const prerender = false;
 
-const res = await fetch(`${import.meta.env.PUBLIC_STRAPI_URL}/api/articles?populate=*`);
-const json = await res.json();
+let articles = [];
 
-const articles = Array.isArray(json?.data) ? json.data : [];
+try {
+  const res = await fetch(`${import.meta.env.PUBLIC_STRAPI_URL}/api/articles?populate=*`);
+
+  if (!res.ok) {
+    throw new Error(`Strapi error: ${res.status}`);
+  }
+
+  const json = await res.json();
+  articles = Array.isArray(json?.data) ? json.data : [];
+
+} catch (err) {
+  console.error('Blog fetch failed:', err);
+}
 
 const formatDate = (dateStr) => {
   if (!dateStr) return null
